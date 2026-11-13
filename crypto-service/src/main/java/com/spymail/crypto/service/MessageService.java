@@ -9,6 +9,7 @@ import com.spymail.crypto.persistence.StoredMessage;
 import com.spymail.crypto.service.ReceiveResult.Delivered;
 import com.spymail.crypto.service.ReceiveResult.NotFound;
 import com.spymail.crypto.service.ReceiveResult.WrongKey;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 import javax.crypto.SecretKey;
@@ -52,6 +53,11 @@ public class MessageService {
     }
     StoredMessage stored = found.get();
 
+    if (isExpired(stored.createdAt())) {
+      repository.delete(id);
+      return new NotFound();
+    }
+
     Optional<String> plaintext = cipher.decrypt(key, stored.encrypted(), associatedData(id));
     if (plaintext.isPresent()) {
       repository.delete(id);
@@ -66,6 +72,10 @@ public class MessageService {
       repository.updateFailedAttempts(id, failedAttempts);
     }
     return new WrongKey(triesLeft);
+  }
+
+  private boolean isExpired(Instant createdAt) {
+    return createdAt.isBefore(Instant.now().minus(properties.maxAge()));
   }
 
   private static byte[] associatedData(UUID id) {

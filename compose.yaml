@@ -31,6 +31,7 @@ services:
       DB_PASSWORD: spymail
       MAX_TRIES: ${MAX_TRIES:-3}
       KEY_SIZE: ${KEY_SIZE:-256}
+      MAX_AGE: ${MAX_AGE:-2d}
     depends_on:
       nats:
         condition: service_healthy

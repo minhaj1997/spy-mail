@@ -1,5 +1,6 @@
 package com.spymail.crypto.config;
 
+import java.time.Duration;
 import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -10,9 +11,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param natsUrl URL of the NATS server
  * @param maxTries number of wrong keys after which a message is deleted
  * @param keySize AES key size in bits: 128, 192 or 256
+ * @param maxAge how long a message can be read before it expires, for example {@code 2d}
  */
 @ConfigurationProperties("spymail")
-public record SpyMailProperties(String natsUrl, int maxTries, int keySize) {
+public record SpyMailProperties(String natsUrl, int maxTries, int keySize, Duration maxAge) {
 
   private static final Set<Integer> ALLOWED_KEY_SIZES = Set.of(128, 192, 256);
 
@@ -25,6 +27,9 @@ public record SpyMailProperties(String natsUrl, int maxTries, int keySize) {
     }
     if (!ALLOWED_KEY_SIZES.contains(keySize)) {
       throw new IllegalArgumentException("KEY_SIZE must be 128, 192 or 256, was " + keySize);
+    }
+    if (maxAge == null || !maxAge.isPositive()) {
+      throw new IllegalArgumentException("MAX_AGE must be positive, was " + maxAge);
     }
   }
 }

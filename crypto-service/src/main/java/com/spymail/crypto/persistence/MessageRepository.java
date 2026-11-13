@@ -1,6 +1,9 @@
 package com.spymail.crypto.persistence;
 
 import com.spymail.crypto.crypto.EncryptedMessage;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -33,14 +36,16 @@ public class MessageRepository {
    */
   public Optional<StoredMessage> findByIdForUpdate(UUID id) {
     return jdbc.sql(
-            "SELECT id, iv, ciphertext, failed_attempts FROM message WHERE id = :id FOR UPDATE")
+            "SELECT id, iv, ciphertext, failed_attempts, created_at FROM message"
+                + " WHERE id = :id FOR UPDATE")
         .param("id", id)
         .query(
             (rs, rowNum) ->
                 new StoredMessage(
                     rs.getObject("id", UUID.class),
                     new EncryptedMessage(rs.getBytes("iv"), rs.getBytes("ciphertext")),
-                    rs.getInt("failed_attempts")))
+                    rs.getInt("failed_attempts"),
+                    rs.getObject("created_at", OffsetDateTime.class).toInstant()))
         .optional();
   }
 
@@ -53,5 +58,12 @@ public class MessageRepository {
 
   public void delete(UUID id) {
     jdbc.sql("DELETE FROM message WHERE id = :id").param("id", id).update();
+  }
+
+  /** Deletes every message created before {@code cutoff}. Returns how many rows that was. */
+  public int deleteOlderThan(Instant cutoff) {
+    return jdbc.sql("DELETE FROM message WHERE created_at < :cutoff")
+        .param("cutoff", OffsetDateTime.ofInstant(cutoff, ZoneOffset.UTC))
+        .update();
   }
 }

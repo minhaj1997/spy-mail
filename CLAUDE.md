@@ -23,9 +23,11 @@ database. Clients are JUnit tests that connect to NATS. Follow the Google Java S
 - `crypto-service/`: Spring Boot 4 app, Java 25, Maven
   - `nats/MessageSubscriber`: subscribes to both subjects, parses JSON, maps results to replies
   - `service/MessageService`: save, and the transactional receive
+  - `service/MessageExpiryJob`: scheduled job that deletes messages older than `MAX_AGE`
   - `persistence/MessageRepository`: JdbcClient, `SELECT ... FOR UPDATE`
   - `crypto/MessageCipher`: AES-GCM
-  - `config/SpyMailProperties`: `MAX_TRIES`, `KEY_SIZE`, `NATS_URL`, validated at startup
+  - `config/SpyMailProperties`: `MAX_TRIES`, `KEY_SIZE`, `MAX_AGE`, `NATS_URL`, validated at
+    startup
 - `client-tests/`: plain JUnit 5 clients over NATS, no Spring
 - `compose.yaml`: nats, postgres, crypto-1, crypto-2, all with healthchecks
 
@@ -42,29 +44,27 @@ database. Clients are JUnit tests that connect to NATS. Follow the Google Java S
   break old messages. A key of another length counts as a wrong try.
 - Invalid Base64 or blank fields give `INVALID_REQUEST` and do not count as a try.
 - An ID that is not a UUID gives `NOT_FOUND`.
+- A message older than `MAX_AGE` (default `2d`) gives `NOT_FOUND` on read, the same code as an
+  unknown ID, since the interface has no separate "expired" error. The check runs inside the same
+  row-locked transaction as the normal receive, so it's consistent across both instances. A
+  scheduled job (`MessageExpiryJob`, hourly) also deletes expired rows nobody ever read, so they
+  don't sit in the database forever; it's a backstop, not the thing that makes expiry correct.
 - The reply is sent only after the transaction commits. If the reply is lost, the message is
   gone. This is accepted and should be noted in NOTES.md.
 - Never log request or reply payloads, and never log Jackson parse errors (they can quote the
   payload).
 
-## Not verified yet
+## Verified
 
-The scaffold was written without being able to build it. Check these first:
-
-- Spring Boot 4 starter names: `spring-boot-starter-webmvc`, `spring-boot-starter-flyway`
-- Jackson 3 packages (`tools.jackson...`) in `MessageSubscriber` and `SpyMailClient`
-- That `docker compose up --build --wait` reaches healthy for all services
-- That `mvn -pl client-tests test` passes against the running system
-
-Only `MessageCipher` and `SpyMailProperties` were compiled and checked by hand.
+Build, `docker compose up --build --wait`, and the full test suite (`./mvnw -pl client-tests
+test`) have all been run against the real stack, including the Spring Boot 4 starter names and
+the Jackson 3 (`tools.jackson...`) packages. A Maven wrapper (`./mvnw`) is checked in, pinned to
+3.9.12, so a local Maven install isn't required.
 
 ## Still to do
 
-- Tests: happy path, read twice, three wrong keys, wrong then right, unknown ID, invalid JSON,
-  missing fields, and a test that keys never appear in logs
-- Expiry: `MAX_AGE` config, a scheduled cleanup job, and a check on read
 - Bonus: TLS and NKeys between test client, NATS and service, described in README
-- Maven wrapper, Spotless with google-java-format
+- Spotless with google-java-format
 - NOTES.md (the developer writes this himself)
 - Optional hardening: PostgreSQL `lock_timeout`
 
