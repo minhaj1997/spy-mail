@@ -1,0 +1,46 @@
+services:
+  nats:
+    image: nats:2.11-alpine
+    command: ["--http_port", "8222"]
+    ports:
+      - "4222:4222"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: spymail
+      POSTGRES_USER: spymail
+      POSTGRES_PASSWORD: spymail
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spymail -d spymail"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  crypto-1: &crypto-service
+    build: ./crypto-service
+    environment:
+      NATS_URL: nats://nats:4222
+      DB_URL: jdbc:postgresql://postgres:5432/spymail
+      DB_USER: spymail
+      DB_PASSWORD: spymail
+      MAX_TRIES: ${MAX_TRIES:-3}
+      KEY_SIZE: ${KEY_SIZE:-256}
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 3s
+      timeout: 2s
+      retries: 20
+      start_period: 20s
+
+  crypto-2: *crypto-service
