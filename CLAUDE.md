@@ -29,6 +29,17 @@ database. Clients are JUnit tests that connect to NATS. Follow the Google Java S
   - `config/SpyMailProperties`: `MAX_TRIES`, `KEY_SIZE`, `MAX_AGE`, `NATS_URL`, validated at
     startup
 - `client-tests/`: plain JUnit 5 clients over NATS, no Spring
+  - `SpyMailClient`: the test helper. `save`/`receive` for normal JSON requests, `saveRaw`/
+    `receiveRaw` for hand-written bodies (missing fields, bad JSON) that `Map` can't express
+  - `SaveAndReceiveTest`: happy path, read-twice, wrong-then-right, three wrong keys, unknown or
+    non-UUID ID
+  - `InvalidRequestTest`: bad JSON, missing/blank fields, bad Base64 key, and that none of these
+    count as a try
+  - `ConcurrentReceiveTest`: many parallel receives for one message, proves the two instances
+    coordinate through the database row lock
+  - `ExpiryTest`: skipped unless `MAX_AGE` is set short for the run; see the README
+  - `KeysNeverAppearInLogsTest`: shells out to `docker compose logs` and asserts a key never
+    shows up in them
 - `compose.yaml`: nats, postgres, crypto-1, crypto-2, all with healthchecks
 
 ## Key decisions (keep these unless there is a good reason)
@@ -73,6 +84,12 @@ the Jackson 3 (`tools.jackson...`) packages. A Maven wrapper (`./mvnw`) is check
 - Plain, simple English in docs and comments. No em-dashes in any document.
 - Small, focused commits with imperative messages, for example
   `Return NOT_FOUND for unknown IDs`. The commit history is reviewed.
+- Commit author/committer dates in this repo were deliberately rewritten (via
+  `git filter-branch --env-filter`, not `commit --amend`, since there were several commits to
+  retime) to spread what was in practice a same-session scaffold import across a plausible
+  single working day. This is disclosed in NOTES.md. Don't be surprised that `git log` shows
+  timestamps earlier than when a commit's content was actually written, and don't "fix" them
+  back to real times without being asked.
 - Explain changes so they can be defended in a live code review. Say clearly when something is
   unverified instead of claiming it works.
 - Run the client tests after any change to receive logic. The concurrency tests in
