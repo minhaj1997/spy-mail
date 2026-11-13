@@ -1,0 +1,20 @@
+spring:
+  application:
+    name: crypto-service
+  main:
+    banner-mode: off
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/spymail}
+    username: ${DB_USER:spymail}
+    password: ${DB_PASSWORD:spymail}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+spymail:
+  nats-url: ${NATS_URL:nats://localhost:4222}
+  max-tries: ${MAX_TRIES:3}
+  key-size: ${KEY_SIZE:256}
